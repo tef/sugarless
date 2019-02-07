@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Example</title>
+<style>
+* {
+	box-sizing: border-box;   
+}
+</style>
+<script>
+	var dict = (function() {
+		function Dict() {
+			this.entries = {};
+		}
+		function _hash(k) {
+			var key = ""+k;
+			return " "+key.length+":"+key;
+		}
+
+		(function(methods) {
+			methods.get = function(key) {
+				return this.entries[_hash(key)];
+			}
+			methods.set = function(key, value) {
+				this.entries[_hash(key)] = value;
+			}
+		})(Dict.prototype);
+
+		return function() {
+			return new Dict();
+		}
+	})();
+
+
+	var Props = (function() {
+		function Table(names) {
+			this.names = names;
+			this.setters = [];
+			this.getters = [];
+			this.attachments = [];
+		}
+
+		(function(methods) {
+			methods.setter = function(args, callback) {
+				this.setters.push([args, callback]);
+			}
+			methods.attach = function(target, renames) {
+				this.attachments.push([target, renames]);
+			}
+
+		})(Table.prototype);
+
+		return function(names) {
+			return new Table(names.split());
+		}
+	})();
+
+	var Attachment = (function() {
+		function Attachment(selector, names) {
+			this.selector = selector
+			this.names = names;
+		}
+		(function(methods) {
+			methods.get_state = function(element) { 
+				var p = {};
+				p[this.names] = element[this.names];
+				return p;
+			}
+			methods.render = function(element, state) {
+				// call setters for each in state
+			}
+			methods.element = function(root) {
+				return root.querySelector(this.selector);
+			}
+			methods.setter = function(args, callback) {
+			}
+		})(Attachment.prototype);
+
+		return function(selector, names) {
+			return new Attachment(selector, names.split());
+		}
+	})();
+
+	var System = (function() {
+		function System(element) {
+			this.root = element
+			this.entities = {}
+		}
+		var n=0;
+		function assign_id(element) {
+			var id = element.id;
+			if (!id) {
+				id = "$entity-"+n;
+				n+=1;
+				element.setAttribute('id', id);
+			}
+			return id;
+		}
+		(function(methods) {
+			methods.mount = function(selector, props) {
+				var element = this.root.querySelector(selector);
+				console.log(element);
+				id = assign_id(element);
+				
+				for (var i=0; i < props.attachments.length; i++) {
+					var entry = props.attachments[i];
+					var target = entry[0], renames = entry[1];
+					console.log(target, renames);
+					var e = element.querySelector(target.selector);
+					console.log(e);
+					e.setAttribute('__entity', id);
+					e.setAttribute('__attachment', i);
+				}
+				this.entities[id] = [props, {}];
+				element.addEventListener('input', this.oninput, true);
+				
+				// tag the element with an id if none
+				// tag the element with an 'entity' class
+				// for each attachment
+				// 	set up event handlers 
+				// create empty state for props
+				// read through tagged elements
+				//	read value, setting state value
+				// create a (props, state) tuple
+				// 
+			}
+
+			methods.unmount = function(selector) {
+			
+			}
+			methods.oninput = function(event) {
+				console.log(this, event.target.value);
+				var id = event.target.getAttribute('__entity');
+				var a_id = event.target.getAttribute('__attachment');
+				if (!id && !a_id) {return; };
+
+				console.log(id, a_id);
+
+				var entity = this.entities[id];
+				var props = entity[0], state = entity[1];
+
+				var entry = props.attachments[a_id];
+				var attachment = entry[0], renames = entry[1];
+				var new_props = attachment.get_state(event.target);
+				
+				var keys = Object.keys(new_props);
+				for (var i=0; i<keys.length; i++) {
+					var k = keys[i];
+					var v = new_props[k];
+					if (renames[k]) { k=renames[k];}
+					state[k] = v;
+				}
+				console.log(state);
+				
+			}
+		})(System.prototype);
+
+		return function(element) {
+			var system = new System(element);
+			system.oninput = system.oninput.bind(system)
+			return system;
+		}
+	})();
+</script>
+</head>
+<body>
+<div id="temp">
+	<form>
+		C: <input type="text" value="0" name="celcius"/>
+		F: <input type="text" value="0" name="brine"/>
+	</form>
+</div>
+<script>
+	var t = Props("c f");
+
+	t.setter("c", function(c) { this.c = c; this.f = c * 1.8 + 32; })
+	t.setter("f", function(c) { this.f = f; this.c = (f - 32) / 1.8 })
+
+	var c_a = Attachment("input[name=celcius]", "value")
+	var f_a = Attachment("input[name=brine]", "value")
+
+	t.attach(c_a, {"value":"c"})
+	t.attach(f_a, {"value":"f"})
+
+	s = System(document)
+
+	var entiry = s.mount("#temp", t)
+
+	console.log("done");
+</script>
+</body>
+</html>
