@@ -45,8 +45,8 @@
 			methods.setter = function(args, callback) {
 				this.setters.push([args, callback]);
 			}
-			methods.attach = function(target, renames) {
-				this.attachments.push([target, renames]);
+			methods.attach = function(name, attachment) {
+				this.attachments.push([name, attachment]);
 			}
 
 		})(Table.prototype);
@@ -57,28 +57,21 @@
 	})();
 
 	var Attachment = (function() {
-		function Attachment(selector, names) {
+		function Attachment(selector, name) {
 			this.selector = selector
-			this.names = names;
+			this.name = name;
 		}
 		(function(methods) {
 			methods.get_state = function(element) { 
-				var p = {};
-				p[this.names] = element[this.names];
-				return p;
+				return element[this.name];
 			}
-			methods.render = function(element, state) {
-				// call setters for each in state
-			}
-			methods.element = function(root) {
-				return root.querySelector(this.selector);
-			}
-			methods.setter = function(args, callback) {
+			methods.set_state = function(element, state) {
+				element[this.name] = state
 			}
 		})(Attachment.prototype);
 
-		return function(selector, names) {
-			return new Attachment(selector, names.split());
+		return function(selector, name) {
+			return new Attachment(selector, name);
 		}
 	})();
 
@@ -105,9 +98,8 @@
 				
 				for (var i=0; i < props.attachments.length; i++) {
 					var entry = props.attachments[i];
-					var target = entry[0], renames = entry[1];
-					console.log(target, renames);
-					var e = element.querySelector(target.selector);
+					var name = entry[0], attachment = entry[1];
+					var e = element.querySelector(attachment.selector);
 					console.log(e);
 					e.setAttribute('__entity', id);
 					e.setAttribute('__attachment', i);
@@ -141,17 +133,30 @@
 				var props = entity[0], state = entity[1];
 
 				var entry = props.attachments[a_id];
-				var attachment = entry[0], renames = entry[1];
-				var new_props = attachment.get_state(event.target);
-				
-				var keys = Object.keys(new_props);
-				for (var i=0; i<keys.length; i++) {
-					var k = keys[i];
-					var v = new_props[k];
-					if (renames[k]) { k=renames[k];}
-					state[k] = v;
+				var name = entry[0], attachment = entry[1];
+				var new_value = attachment.get_state(event.target);
+
+				for (var i =0; i<props.setters.length; i++) {
+					var entry = props.setters[i];
+					var n = entry[0], setter=entry[1];
+					if (name == n) {	
+						console.log(setter, state, new_value);
+						setter.apply(state, [new_value]);
+					}
 				}
+				       			
 				console.log(state);
+
+				var container = this.root.querySelector('#'+id);
+
+				for (var i=0; i<props.attachments.length;i++) {
+					var entry = props.attachments[i];
+					var name = entry[0], a = entry[1]
+					var element = container.querySelector(a.selector);
+					a.set_state(element, state[name]);
+				}
+
+
 				
 			}
 		})(System.prototype);
@@ -175,13 +180,13 @@
 	var t = Props("c f");
 
 	t.setter("c", function(c) { this.c = c; this.f = c * 1.8 + 32; })
-	t.setter("f", function(c) { this.f = f; this.c = (f - 32) / 1.8 })
+	t.setter("f", function(f) { this.f = f; this.c = (f - 32) / 1.8 })
 
 	var c_a = Attachment("input[name=celcius]", "value")
 	var f_a = Attachment("input[name=brine]", "value")
 
-	t.attach(c_a, {"value":"c"})
-	t.attach(f_a, {"value":"f"})
+	t.attach("c", c_a)
+	t.attach("f", f_a)
 
 	s = System(document)
 
